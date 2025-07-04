@@ -214,7 +214,7 @@ aws cloudformation describe-stacks --stack-name insurance-quote-website --query 
 ### **Compute Layer (Business Logic)**
 9. **Public Endpoints** → Submit Quote, Calculate Premium, Validate Access (no auth)
 10. **Protected Endpoints** → Get User Quotes (requires JWT authentication)
-11. **VPC Security** → All Lambda functions run in private VPC with security groups
+11. **IAM Security** → Lambda functions have granular IAM permissions
 12. **Secret Management** → Validate Access Lambda retrieves codes from Secrets Manager
 
 ### **Event-Driven Processing**
