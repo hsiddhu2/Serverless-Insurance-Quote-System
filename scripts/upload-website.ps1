@@ -40,18 +40,10 @@ if ($apiEndpoint) {
 
 Write-Host
 
-# Upload website files
-Write-Host "Uploading website files..." -ForegroundColor Yellow
+# Upload website files from frontend directory
+Write-Host "Uploading website files from frontend directory..." -ForegroundColor Yellow
 
-aws s3 sync . s3://$bucketName/ `
-    --exclude "*.yaml" `
-    --exclude "*.ps1" `
-    --exclude "*.md" `
-    --exclude "backend/*" `
-    --exclude ".aws-sam/*" `
-    --exclude "*.zip" `
-    --exclude ".git/*" `
-    --exclude "cloudfront-rate-limit.js" `
+aws s3 sync frontend/ s3://$bucketName/ `
     --delete
 
 if ($LASTEXITCODE -ne 0) {

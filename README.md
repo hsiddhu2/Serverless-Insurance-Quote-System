@@ -67,8 +67,8 @@ git clone <repository-url>
 cd Serverless-Insurance-Quote-System
 
 # Build and deploy backend
-sam build
-sam deploy --guided
+sam build --template-file infrastructure/template.yaml
+sam deploy --template-file infrastructure/template.yaml --guided
 ```
 
 **What gets deployed:**
@@ -81,7 +81,7 @@ sam deploy --guided
 
 ### **Step 2: Configure Frontend**
 
-Update `config.js` with your deployment outputs:
+Update `frontend/config.js` with your deployment outputs:
 ```javascript
 // Get these values from: aws cloudformation describe-stacks --stack-name serverless-insurance-quote-app
 window.API_ENDPOINT = "https://your-api-id.execute-api.region.amazonaws.com/Prod";
@@ -124,16 +124,16 @@ aws secretsmanager update-secret \
 python -m http.server 5500
 ```
 
-**Access locally at:** `http://localhost:5500`
+**Access locally at:** `http://localhost:5500` (serve from `frontend/` directory)
 
 ### **Step 4B: AWS Deployment with CloudFront**
 
 ```bash
 # Deploy website hosting infrastructure
-sam deploy --template-file website-hosting.yaml --stack-name insurance-quote-website --capabilities CAPABILITY_IAM
+sam deploy --template-file infrastructure/website-hosting.yaml --stack-name insurance-quote-website --capabilities CAPABILITY_IAM
 
 # Upload website files
-.\upload-website.ps1 -StackName insurance-quote-website
+.\scripts\upload-website.ps1 -StackName insurance-quote-website
 
 # Get your production URL
 aws cloudformation describe-stacks --stack-name insurance-quote-website --query "Stacks[0].Outputs[?OutputKey=='CloudFrontURL'].OutputValue" --output text
@@ -167,19 +167,25 @@ aws cloudformation describe-stacks --stack-name insurance-quote-website --query 
 ## 📁 Project Structure
 
 ```
-├── index.html              # Home page with quote options
-├── login.html              # Branded authentication page
-├── quote.html              # Dynamic quote request form
-├── quotes.html             # User quotes dashboard
-├── style.css               # Responsive styling
-├── script.js               # Quote form logic and validation
-├── cognito-hosted.js       # Authentication handling
-├── config.js               # Configuration (update after deployment)
-├── template.yaml           # SAM template (backend infrastructure)
-├── website-hosting.yaml    # S3 hosting template (optional)
-├── upload-website.ps1      # File upload automation
-└── backend/
-    └── lambda/            # Lambda function code
+├── README.md               # Project documentation
+├── SECURITY.md             # Security implementation details
+├── .gitignore              # Git ignore rules
+├── frontend/               # Frontend application files
+│   ├── index.html          # Home page with quote options
+│   ├── login.html          # Branded authentication page
+│   ├── quote.html          # Dynamic quote request form
+│   ├── quotes.html         # User quotes dashboard
+│   ├── style.css           # Responsive styling
+│   ├── script.js           # Quote form logic and validation
+│   ├── cognito-hosted.js   # Authentication handling
+│   └── config.js           # Configuration (update after deployment)
+├── infrastructure/         # AWS infrastructure templates
+│   ├── template.yaml       # SAM template (backend infrastructure)
+│   └── website-hosting.yaml # S3 hosting template (optional)
+├── scripts/                # Deployment and utility scripts
+│   └── upload-website.ps1  # File upload automation
+└── backend/                # Backend Lambda functions
+    └── lambda/
         ├── submitQuote.py
         ├── calculatePremium.py
         ├── getUserQuotes.py
