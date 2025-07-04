@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Insurance Quote System</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="hero">
+    <div class="hero-content">
+      <h1>Welcome to QuickQuote</h1>
+      <p>Get instant quotes for Auto, Life, or Home Insurance.</p>
+      <div class="buttons">
+        <button onclick="window.location.href='quote.html'">Request a Quote</button>
+        
+        <!-- Buttons for logged out users -->
+        <button id="loginButton" onclick="loginWithCognito()">Login / Sign Up</button>
+        
+        <!-- Buttons for logged in users -->
+        <button id="quotesButton" onclick="goToQuotes()" style="display: none;">My Quotes</button>
+        <button id="logoutButton" onclick="logout()" style="display: none;">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="info-section">
+    <div class="info-card">
+      <h2>Auto Insurance</h2>
+      <p>Protect your vehicle with tailored coverage and competitive rates.</p>
+    </div>
+    <div class="info-card">
+      <h2>Life Insurance</h2>
+      <p>Secure your family's future with our flexible life insurance options.</p>
+    </div>
+    <div class="info-card">
+      <h2>Home Insurance</h2>
+      <p>Coverage that gives peace of mind for your most valuable asset.</p>
+    </div>
+  </section>
+
+
+
+  <footer>
+    <p>&copy; 2025 QuickQuote Insurance. All rights reserved.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="cognito-hosted.js"></script>
+  <script src="script.js"></script>
+  <script src="app-gateway.js"></script>
+</body>
+</html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Request Insurance Quote</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="hero small-hero">
+    <div class="hero-content">
+      <h1>Request an Insurance Quote</h1>
+      <p>Select insurance type and get a real-time premium estimate.</p>
+    </div>
+  </header>
+
+  <div class="container quote-form-container">
+    <form id="quoteForm" class="form-card">
+      <div class="form-group">
+        <label for="name">Name:</label>
+        <input type="text" id="name" required />
+      </div>
+
+      <div class="form-group">
+        <label for="email">Email:</label>
+        <input type="email" id="email" required />
+      </div>
+
+      <div class="form-group full-width">
+        <label for="insuranceType">Insurance Type:</label>
+        <select id="insuranceType" required>
+          <option value="">Select</option>
+          <option value="auto">Auto</option>
+          <option value="life">Life</option>
+          <option value="home">Home</option>
+        </select>
+      </div>
+
+      <div id="dynamicFields" class="full-width"></div>
+
+      <div style="display: flex; gap: 10px; grid-column: span 2;">
+        <button type="button" id="getQuoteBtn" style="flex: 1; background-color: #1976d2;">Get Instant Quote</button>
+        <button type="submit" style="flex: 1;">Submit Quote Request</button>
+      </div>
+    </form>
+
+    <div id="responseBox" style="margin-top: 20px; font-weight: bold;"></div>
+    <div style="text-align: center; margin-top: 30px;">
+      <button onclick="window.location.href='index.html'">⬅ Back to Home</button>
+    </div>
+  </div>
+
+  <footer>
+    <p>&copy; 2025 QuickQuote Insurance. All rights reserved.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="script.js"></script>
+  <script src="app-gateway.js"></script>
+</body>
+</html>

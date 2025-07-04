@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Login - QuickQuote Insurance</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero small-hero">
+    <div class="hero-content">
+      <h1>Login to QuickQuote</h1>
+      <p>Access your insurance quotes and manage your account</p>
+      <div class="buttons">
+        <button onclick="window.location.href='index.html'">Back to Home</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="login-section">
+    <div class="login-container">
+      <div class="login-card">
+        <h2>Sign In to Your Account</h2>
+        <p>Click the button below to securely sign in or create a new account</p>
+        
+        <button id="cognitoLoginBtn" class="cognito-login-btn">
+          Sign In / Sign Up
+        </button>
+        
+        <div id="loginStatus" style="margin-top: 20px; text-align: center;"></div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    <p>&copy; 2025 QuickQuote Insurance. All rights reserved.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="app-gateway.js"></script>
+  <script>
+    // Wait for app-gateway to load configuration
+    function initializeLogin() {
+      if (!window.COGNITO_CONFIG || !window.COGNITO_CONFIG.userPoolId) {
+        setTimeout(initializeLogin, 500); // Wait for config to load
+        return;
+      }
+      
+      document.getElementById('cognitoLoginBtn').addEventListener('click', function() {
+        try {
+          const accountId = window.COGNITO_CONFIG.accountId;
+          
+          const cognitoDomain = `insurance-quotes-${accountId}.auth.${window.COGNITO_CONFIG.region}.amazoncognito.com`;
+          const clientId = window.COGNITO_CONFIG.clientId;
+          const redirectUri = window.location.origin + '/index.html';
+          
+          const params = new URLSearchParams({
+            client_id: clientId,
+            response_type: 'code',
+            scope: 'email openid profile',
+            redirect_uri: redirectUri
+          });
+          
+          const loginUrl = `https://${cognitoDomain}/login?${params.toString()}`;
+          
+          // Show loading state
+          document.getElementById('loginStatus').innerHTML = '<p>Redirecting to secure login...</p>';
+          
+          // Redirect after short delay
+          setTimeout(() => {
+            window.location.href = loginUrl;
+          }, 1000);
+        } catch (error) {
+          console.error('Login error:', error);
+          document.getElementById('loginStatus').innerHTML = '<p style="color: red;">Configuration loading... Please wait.</p>';
+        }
+      });
+    }
+    
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', initializeLogin);
+  </script>
+</body>
+</html>

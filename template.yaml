@@ -1,0 +1,383 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Serverless Insurance Quote System
+
+Globals:
+  Function:
+    Timeout: 30
+    Runtime: python3.10
+    Environment:
+      Variables:
+        DYNAMODB_TABLE: !Ref InsuranceQuoteTable
+
+Resources:
+  # SNS Topic
+  InsuranceQuoteRequestsTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: Insurance-Quote-Requests
+
+  # SQS Queues
+  VehicleInsuranceQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: vehicle-insurance-quotes
+
+  LifeInsuranceQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: life-insurance-quotes
+
+  HomeInsuranceQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: home-insurance-quotes
+
+  # SNS Subscriptions with Filter Policies
+  VehicleInsuranceSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref InsuranceQuoteRequestsTopic
+      Protocol: sqs
+      Endpoint: !GetAtt VehicleInsuranceQueue.Arn
+      FilterPolicy:
+        insuranceType:
+          - "auto"
+          - "vehicle"
+
+  LifeInsuranceSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref InsuranceQuoteRequestsTopic
+      Protocol: sqs
+      Endpoint: !GetAtt LifeInsuranceQueue.Arn
+      FilterPolicy:
+        insuranceType:
+          - "life"
+
+  HomeInsuranceSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref InsuranceQuoteRequestsTopic
+      Protocol: sqs
+      Endpoint: !GetAtt HomeInsuranceQueue.Arn
+      FilterPolicy:
+        insuranceType:
+          - "home"
+
+  # SQS Queue Policies
+  VehicleInsuranceQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref VehicleInsuranceQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt VehicleInsuranceQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref InsuranceQuoteRequestsTopic
+
+  LifeInsuranceQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref LifeInsuranceQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt LifeInsuranceQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref InsuranceQuoteRequestsTopic
+
+  HomeInsuranceQueuePolicy:
+    Type: AWS::SQS::QueuePolicy
+    Properties:
+      Queues:
+        - !Ref HomeInsuranceQueue
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: sns.amazonaws.com
+            Action: sqs:SendMessage
+            Resource: !GetAtt HomeInsuranceQueue.Arn
+            Condition:
+              ArnEquals:
+                aws:SourceArn: !Ref InsuranceQuoteRequestsTopic
+
+  # DynamoDB Table for Insurance Quotes
+  InsuranceQuoteTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: InsuranceQuoteRequestsV2
+      AttributeDefinitions:
+        - AttributeName: compositeKey
+          AttributeType: S
+      KeySchema:
+        - AttributeName: compositeKey
+          KeyType: HASH
+      BillingMode: PAY_PER_REQUEST
+
+
+
+  # Cognito User Pool
+  CognitoUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: InsuranceQuoteUsers
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+        - Name: name
+          AttributeDataType: String
+          Required: true
+          Mutable: true
+
+  # Cognito User Pool Domain
+  CognitoUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "insurance-quotes-${AWS::AccountId}"
+      UserPoolId: !Ref CognitoUserPool
+
+  # Cognito User Pool Client
+  CognitoUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CognitoUserPool
+      ClientName: InsuranceQuoteWebClient
+      GenerateSecret: false
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - http://localhost:5500/
+        - http://localhost:5500/index.html
+        # Add your CloudFront URL here after deployment
+        # - https://your-cloudfront-domain.cloudfront.net/
+      LogoutURLs:
+        - http://localhost:5500/
+        - http://localhost:5500/index.html
+        # Add your CloudFront URL here after deployment
+        # - https://your-cloudfront-domain.cloudfront.net/
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      AllowedOAuthFlowsUserPoolClient: true
+
+  # HTTP API Gateway with Default Route Throttling
+  InsuranceApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: Prod
+      DefaultRouteSettings:
+        ThrottlingBurstLimit: 5
+        ThrottlingRateLimit: 5
+      Auth:
+        Authorizers:
+          CognitoAuthorizer:
+            JwtConfiguration:
+              issuer: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CognitoUserPool}"
+              audience:
+                - !Ref CognitoUserPoolClient
+            IdentitySource: "$request.header.Authorization"
+      CorsConfiguration:
+        AllowMethods:
+          - GET
+          - POST
+          - OPTIONS
+        AllowHeaders:
+          - Content-Type
+          - X-Amz-Date
+          - Authorization
+          - X-Api-Key
+        AllowOrigins:
+          - "*"
+
+  # Lambda Functions
+  SubmitQuoteLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: SubmitQuoteLambda
+      CodeUri: backend/lambda/
+      Handler: submitQuote.lambda_handler
+      Environment:
+        Variables:
+          SNS_TOPIC_ARN: !Ref InsuranceQuoteRequestsTopic
+      Policies:
+        - SNSPublishMessagePolicy:
+            TopicName: !GetAtt InsuranceQuoteRequestsTopic.TopicName
+      Events:
+        SubmitQuoteApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref InsuranceApi
+            Path: /submitQuote
+            Method: POST
+
+  AutoQuoteLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: AutoQuoteLambda
+      CodeUri: backend/lambda/
+      Handler: autoQuoteLambda.lambda_handler
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref InsuranceQuoteTable
+      Events:
+        VehicleQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt VehicleInsuranceQueue.Arn
+            BatchSize: 10
+
+  HomeQuoteLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: HomeQuoteLambda
+      CodeUri: backend/lambda/
+      Handler: homeQuoteLambda.lambda_handler
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref InsuranceQuoteTable
+      Events:
+        HomeQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt HomeInsuranceQueue.Arn
+            BatchSize: 10
+
+  LifeQuoteLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: LifeQuoteLambda
+      CodeUri: backend/lambda/
+      Handler: LifeQuoteLambda.lambda_handler
+      Policies:
+        - DynamoDBWritePolicy:
+            TableName: !Ref InsuranceQuoteTable
+      Events:
+        LifeQueueEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt LifeInsuranceQueue.Arn
+            BatchSize: 10
+
+  CalculatePremiumLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: CalculatePremiumLambda
+      CodeUri: backend/lambda/
+      Handler: calculatePremium.lambda_handler
+      Events:
+        CalculatePremiumApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref InsuranceApi
+            Path: /calculatePremium
+            Method: POST
+
+  GetUserQuotesLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: GetUserQuotesLambda
+      CodeUri: backend/lambda/
+      Handler: getUserQuotes.lambda_handler
+      Policies:
+        - DynamoDBReadPolicy:
+            TableName: !Ref InsuranceQuoteTable
+      Events:
+        GetUserQuotesApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref InsuranceApi
+            Path: /user/quotes
+            Method: GET
+            Auth:
+              Authorizer: CognitoAuthorizer
+
+  # Lambda Function to Validate Access Codes
+  ValidateAccessLambda:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: ValidateAccessLambda
+      CodeUri: backend/lambda/
+      Handler: validateAccess.lambda_handler
+      Environment:
+        Variables:
+          ACCESS_CODES_SECRET_NAME: !Sub '${AWS::StackName}-access-codes'
+      Policies:
+        - Statement:
+            - Effect: Allow
+              Action:
+                - secretsmanager:GetSecretValue
+              Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${AWS::StackName}-access-codes*'
+      Events:
+        ValidateAccessApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref InsuranceApi
+            Path: /validate-access
+            Method: POST
+
+Outputs:
+  InsuranceApiUrl:
+    Description: "API Gateway endpoint URL"
+    Value: !Sub "https://${InsuranceApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
+  
+  CognitoUserPoolId:
+    Description: "Cognito User Pool ID"
+    Value: !Ref CognitoUserPool
+  
+  CognitoUserPoolClientId:
+    Description: "Cognito User Pool Client ID"
+    Value: !Ref CognitoUserPoolClient
+  
+  CognitoHostedUIUrl:
+    Description: "Cognito Hosted UI Login URL"
+    Value: !Sub "https://insurance-quotes-${AWS::AccountId}.auth.${AWS::Region}.amazoncognito.com/login?client_id=${CognitoUserPoolClient}&response_type=code&scope=email+openid+profile&redirect_uri=http://localhost:5500/"
+  
+  CognitoRegion:
+    Description: "AWS Region for Cognito"
+    Value: !Ref AWS::Region
+  
+  SNSTopicArn:
+    Description: "SNS Topic ARN"
+    Value: !Ref InsuranceQuoteRequestsTopic
+  
+  DynamoDBTableName:
+    Description: "DynamoDB Table Name"
+    Value: !Ref InsuranceQuoteTable
+  
+  StackStatus:
+    Description: "Stack deployment status"
+    Value: "Backend deployed successfully"
+  
+

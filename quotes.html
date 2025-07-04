@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Insurance Quotes - QuickQuote</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="hero small-hero">
+    <div class="hero-content">
+      <h1>My Insurance Quotes</h1>
+      <p>View and manage your insurance quotes</p>
+      <div class="buttons">
+        <button onclick="window.location.href='index.html'">Home</button>
+        <button onclick="goToNewQuote()">New Quote</button>
+        <button onclick="logout()" id="logoutBtn">Logout</button>
+      </div>
+    </div>
+  </header>
+
+  <section class="quotes-section">
+    <div id="loadingMessage" style="text-align: center; padding: 50px;">
+      <h2>Loading your quotes...</h2>
+    </div>
+    
+    <div id="quotesContainer" style="display: none;">
+      <div id="userInfo" style="text-align: center; margin-bottom: 30px;">
+        <h2>Welcome back, <span id="userName"></span>!</h2>
+        <p>Email: <span id="userEmail"></span></p>
+      </div>
+      
+      <div id="quotesGrid" class="quotes-grid">
+        <!-- Quotes will be loaded here -->
+      </div>
+    </div>
+    
+    <div id="noQuotesMessage" style="display: none; text-align: center; padding: 50px;">
+      <h2>No Quotes Found</h2>
+      <p>You haven't submitted any insurance quotes yet.</p>
+      <button onclick="window.location.href='quote.html'" style="padding: 15px 30px; font-size: 16px; background: #2c3e50; color: white; border: none; border-radius: 5px; cursor: pointer;">Get Your First Quote</button>
+    </div>
+  </section>
+
+  <footer>
+    <p>&copy; 2025 QuickQuote Insurance. All rights reserved.</p>
+  </footer>
+
+  <script src="config.js"></script>
+  <script src="cognito-hosted.js"></script>
+  <script>
+    // Load quotes when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      loadUserQuotesOnPage();
+    });
+
+    async function loadUserQuotesOnPage() {
+      try {
+        const idToken = localStorage.getItem('idToken');
+        if (!idToken) {
+          window.location.href = 'index.html';
+          return;
+        }
+
+        const response = await fetch(`${window.API_ENDPOINT}/user/quotes`, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${idToken}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        const result = await response.json();
+        
+        if (response.ok) {
+          displayQuotesOnPage(result.quotes, result.userEmail);
+        } else {
+          showError(result.error || 'Failed to load quotes');
+        }
+      } catch (error) {
+        console.error('Error loading quotes:', error);
+        showError('Error loading quotes. Please try again.');
+      }
+    }
+
+    function displayQuotesOnPage(quotes, userEmail) {
+      document.getElementById('loadingMessage').style.display = 'none';
+      
+      if (quotes.length === 0) {
+        document.getElementById('noQuotesMessage').style.display = 'block';
+        return;
+      }
+
+      document.getElementById('quotesContainer').style.display = 'block';
+      document.getElementById('userEmail').textContent = userEmail;
+      document.getElementById('userName').textContent = userEmail.split('@')[0];
+
+      const quotesGrid = document.getElementById('quotesGrid');
+      quotesGrid.innerHTML = '';
+
+      quotes.forEach(quote => {
+        const quoteCard = document.createElement('div');
+        quoteCard.className = 'quote-card';
+        quoteCard.innerHTML = `
+          <div class="quote-header">
+            <h3>${quote.insuranceType.charAt(0).toUpperCase() + quote.insuranceType.slice(1)} Insurance</h3>
+            <div class="premium-amount">$${quote.premiumAmount}</div>
+          </div>
+          <div class="quote-details">
+            <p><strong>Date:</strong> ${new Date(quote.createdAt).toLocaleDateString()}</p>
+            <div class="details-grid">
+              ${Object.entries(quote.details).map(([key, value]) => 
+                `<div><strong>${key.charAt(0).toUpperCase() + key.slice(1)}:</strong> ${value}</div>`
+              ).join('')}
+            </div>
+          </div>
+        `;
+        quotesGrid.appendChild(quoteCard);
+      });
+    }
+
+    function showError(message) {
+      document.getElementById('loadingMessage').innerHTML = `
+        <h2>Error</h2>
+        <p>${message}</p>
+        <button onclick="window.location.href='index.html'" style="padding: 10px 20px; margin-top: 15px;">Go Home</button>
+      `;
+    }
+
+    function goToNewQuote() {
+      const userEmail = document.getElementById('userEmail').textContent;
+      const userName = document.getElementById('userName').textContent;
+      window.location.href = `quote.html?email=${encodeURIComponent(userEmail)}&name=${encodeURIComponent(userName)}`;
+    }
+  </script>
+  <script src="app-gateway.js"></script>
+</body>
+</html>

@@ -1,0 +1,203 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'S3 Static Website Hosting for Insurance Quote System'
+
+Parameters:
+  BucketName:
+    Type: String
+    Description: 'Name for the S3 bucket (must be globally unique)'
+    Default: 'insurance-quote-website'
+
+Resources:
+  # S3 Bucket for static website hosting (private, CloudFront only)
+  WebsiteBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${BucketName}-${AWS::AccountId}-${AWS::Region}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  # Origin Access Control for CloudFront to access S3
+  OriginAccessControl:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub '${BucketName}-OAC'
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  # CloudFront Distribution for HTTPS and better performance
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - DomainName: !GetAtt WebsiteBucket.RegionalDomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+            OriginAccessControlId: !GetAtt OriginAccessControl.Id
+        Enabled: true
+        DefaultRootObject: index.html
+        Comment: 'Insurance Quote System Website'
+        DefaultCacheBehavior:
+          AllowedMethods:
+            - DELETE
+            - GET
+            - HEAD
+            - OPTIONS
+            - PATCH
+            - POST
+            - PUT
+          TargetOriginId: S3Origin
+          ForwardedValues:
+            QueryString: false
+            Cookies:
+              Forward: all
+          ViewerProtocolPolicy: redirect-to-https
+          # FunctionAssociations:
+          #   - EventType: viewer-request
+          #     FunctionARN: !GetAtt WebsiteRateLimitFunction.FunctionMetadata.FunctionARN
+          MinTTL: 0
+          DefaultTTL: 86400
+          MaxTTL: 31536000
+        CustomErrorResponses:
+          - ErrorCode: 404
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+          - ErrorCode: 403
+            ResponseCode: 200
+            ResponsePagePath: /index.html
+        PriceClass: PriceClass_100
+
+  # CloudFront Function for Rate Limiting
+  WebsiteRateLimitFunction:
+    Type: AWS::CloudFront::Function
+    Properties:
+      Name: !Sub '${AWS::StackName}-website-rate-limit'
+      AutoPublish: true
+      FunctionConfig:
+        Comment: 'Website rate limiting with 7-day ban'
+        Runtime: cloudfront-js-1.0
+      FunctionCode: |
+        function handler(event) {
+            var request = event.request;
+            var clientIP = event.viewer.ip;
+            var RATE_LIMIT = 5;
+            var now = Math.floor(Date.now() / 1000);
+            var windowStart = Math.floor(now / 60) * 60;
+            var ipHash = hashIP(clientIP);
+            
+            // Simple rate limiting without complex cookie parsing
+            var rateCookie = getCookie(request.headers.cookie, 'rl_' + ipHash);
+            var banCookie = getCookie(request.headers.cookie, 'ban_' + ipHash);
+            
+            // Check if banned
+            if (banCookie && parseInt(banCookie) > now) {
+                return {
+                    statusCode: 429,
+                    statusDescription: 'Access Suspended',
+                    headers: {
+                        'content-type': { value: 'text/html' }
+                    },
+                    body: '<html><body><h1>Access Suspended</h1><p>Rate limit exceeded. Try again later.</p></body></html>'
+                };
+            }
+            
+            // Parse rate data
+            var count = 1;
+            if (rateCookie) {
+                var parts = rateCookie.split('_');
+                if (parts.length === 2 && parseInt(parts[1]) === windowStart) {
+                    count = parseInt(parts[0]) + 1;
+                }
+            }
+            
+            // Check rate limit
+            if (count > RATE_LIMIT) {
+                var banUntil = now + (7 * 24 * 60 * 60); // 7 days
+                return {
+                    statusCode: 429,
+                    statusDescription: 'Rate Limited',
+                    headers: {
+                        'content-type': { value: 'text/html' },
+                        'set-cookie': { value: 'ban_' + ipHash + '=' + banUntil + '; Max-Age=604800; Path=/' }
+                    },
+                    body: '<html><body><h1>Rate Limit Exceeded</h1><p>Too many requests. Access suspended.</p></body></html>'
+                };
+            }
+            
+            // Set rate cookie
+            request.headers['set-cookie'] = { 
+                value: 'rl_' + ipHash + '=' + count + '_' + windowStart + '; Max-Age=60; Path=/' 
+            };
+            
+            return request;
+        }
+        
+        function getCookie(header, name) {
+            if (!header || !header.value) return null;
+            var cookies = header.value.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.indexOf(name + '=') === 0) {
+                    return cookie.substring(name.length + 1);
+                }
+            }
+            return null;
+        }
+        
+        function hashIP(ip) {
+            var hash = 0;
+            for (var i = 0; i < ip.length; i++) {
+                hash = ((hash << 5) - hash) + ip.charCodeAt(i);
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(36).substr(0, 6);
+        }
+
+  # Bucket policy to allow only CloudFront access (created after CloudFront)
+  WebsiteBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    DependsOn: CloudFrontDistribution
+    Properties:
+      Bucket: !Ref WebsiteBucket
+      PolicyDocument:
+        Statement:
+          - Sid: AllowCloudFrontServicePrincipal
+            Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: 's3:GetObject'
+            Resource: !Sub 'arn:aws:s3:::${WebsiteBucket}/*'
+            Condition:
+              StringEquals:
+                'AWS:SourceArn': !Sub 'arn:aws:cloudfront::${AWS::AccountId}:distribution/${CloudFrontDistribution}'
+
+Outputs:
+  CloudFrontURL:
+    Description: 'CloudFront Distribution URL (HTTPS) - Primary Website URL'
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'
+    Export:
+      Name: !Sub '${AWS::StackName}-CloudFrontURL'
+  
+  BucketName:
+    Description: 'S3 Bucket Name (Private - CloudFront Access Only)'
+    Value: !Ref WebsiteBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-BucketName'
+  
+  OriginAccessControlId:
+    Description: 'Origin Access Control ID'
+    Value: !GetAtt OriginAccessControl.Id
+    Export:
+      Name: !Sub '${AWS::StackName}-OAC-ID'
+  
+  CognitoCallbackURL:
+    Description: 'Add this URL to your Cognito User Pool Client callback URLs'
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}/'
+    Export:
+      Name: !Sub '${AWS::StackName}-Callback-URL'
