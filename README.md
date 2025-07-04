@@ -225,10 +225,10 @@ aws cloudformation describe-stacks --stack-name insurance-quote-website --query 
 17. **Batch Processing** → SQS enables controlled Lambda scaling with batch sizes
 
 ### **Storage & Data Layer**
-18. **Data Persistence** → All processed quotes stored in encrypted DynamoDB
+18. **Data Persistence** → All processed quotes stored in DynamoDB
 19. **Composite Keys** → Prevents duplicate quotes using email#insuranceType pattern
-20. **Point-in-Time Recovery** → DynamoDB backup for data protection
-21. **VPC Endpoints** → Private connectivity to AWS services without internet
+20. **Scalable Storage** → DynamoDB auto-scales based on demand
+21. **Data Modeling** → Optimized for query patterns and performance
 
 ### **Monitoring & Security**
 22. **Request Tracing** → X-Ray provides distributed tracing across all components
@@ -249,11 +249,11 @@ Monitoring: CloudWatch + X-Ray + CloudTrail → Security Alerts
 ```
 
 ### **Security Layers**
-- **Perimeter Security**: WAF + Shield + CloudFront
-- **Network Security**: VPC + Security Groups + VPC Endpoints  
+- **Frontend Security**: CloudFront + HTTPS + CORS
+- **API Security**: API Gateway + Rate Limiting + CORS
 - **Application Security**: Cognito + JWT + Session Control
-- **Data Security**: Encryption at rest + in transit + Secrets Manager
-- **Operational Security**: CloudTrail + CloudWatch + Automated alerts
+- **Data Security**: Secrets Manager + IAM Permissions
+- **Operational Security**: CloudWatch + Monitoring + Alerting
 
 ## 🔐 Authentication Flow
 
